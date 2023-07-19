@@ -17,7 +17,7 @@ def main():
         'port': 5432
     }
     # имя базы данных
-    db_name = 'test_base'
+    db_name = 'hh_ru_database'
 
     # экземпляр для подключения, создания и работы с базой данных Postgres
     db_manager = DBManager(db_name, params)
