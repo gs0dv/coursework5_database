@@ -9,7 +9,8 @@ class HeadHunterAPI:
 
     def __init__(self):
         # ссылка для подключения
-        self.url = 'https://api.hh.ru/vacancies'
+        self.vacancies_url = 'https://api.hh.ru/vacancies'
+        self.employers_url = 'https://api.hh.ru/employers/'
 
     @staticmethod
     def get_data_from_url_with_params(url, params):
@@ -30,12 +31,12 @@ class HeadHunterAPI:
             'page': page,
             'per_page': 100
         }
-        data = self.get_data_from_url_with_params(self.url, params)
+        data = self.get_data_from_url_with_params(self.vacancies_url, params)
         return data
 
     def get_data_employer(self, id_employer):
         """Возвращает данные о компании по её id"""
-        url = f'https://api.hh.ru/employers/{id_employer}'
+        url = f'{self.employers_url}{id_employer}'
         data = self.get_data_from_url_with_params(url, {})
         return data
 
@@ -49,7 +50,7 @@ class HeadHunterAPI:
             'per_page': 100
         }
 
-        data = self.get_data_from_url_with_params(self.url, params)
+        data = self.get_data_from_url_with_params(self.vacancies_url, params)
 
         if not data:
             return

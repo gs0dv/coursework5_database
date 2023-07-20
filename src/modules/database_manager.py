@@ -7,28 +7,27 @@ class DBManager:
     def __init__(self, database_name, params):
         self.database_name = database_name
         self.params = params
-        self.create_database(self.database_name, self.params)
+        self.create_database()
 
-    @staticmethod
-    def create_database(dbname, params):
+    def create_database(self):
         """Создание базы данных и таблиц для хранения данных о работодателе и его вакансиях"""
-        conn = psycopg2.connect(dbname='postgres', **params)
+        conn = psycopg2.connect(dbname='postgres', **self.params)
         conn.autocommit = True
         cur = conn.cursor()
 
         cur.execute(f"""
         SELECT pg_terminate_backend(pg_stat_activity.pid)
         FROM pg_stat_activity
-        WHERE pg_stat_activity.datname = '{dbname}' -- ← изменить на свое название БД
+        WHERE pg_stat_activity.datname = '{self.database_name}' -- ← изменить на свое название БД
         AND pid <> pg_backend_pid();
         """)
 
-        cur.execute(f'DROP DATABASE IF EXISTS {dbname}')
-        cur.execute(f'CREATE DATABASE {dbname}')
+        cur.execute(f'DROP DATABASE IF EXISTS {self.database_name}')
+        cur.execute(f'CREATE DATABASE {self.database_name}')
 
         conn.close()
 
-        conn = psycopg2.connect(dbname=dbname, **params)
+        conn = psycopg2.connect(dbname=self.database_name, **self.params)
 
         with conn.cursor() as cur:
             cur.execute("""
@@ -132,6 +131,43 @@ class DBManager:
         conn.commit()
         conn.close()
         return data
+
+    @staticmethod
+    def save_data_to_database(data, db_name, params):
+        """Сохранение данных в базу данных"""
+
+        conn = psycopg2.connect(dbname=db_name, **params)
+
+        with conn.cursor() as cur:
+            for employer in data:
+                employer_data = employer['employer']
+                cur.execute("""
+                    INSERT INTO employers (employer_id, name_employer, employer_url, employer_hh_url, count_vacancies)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING employer_id
+                """, (employer_data['id'],
+                      employer_data['name'],
+                      employer_data['url'],
+                      employer_data['hh_url'],
+                      employer_data['count_vacancies'])
+                            )
+                employer_id = cur.fetchone()[0]
+
+                vacancies_data = employer['vacancies']
+                for vacancy in vacancies_data:
+                    cur.execute("""
+                        INSERT INTO vacancies (vacancy_id, employer_id, name_vacancy, city, salary, vacancy_url)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, (vacancy['id'],
+                          employer_id,
+                          vacancy['name'],
+                          vacancy['city'],
+                          vacancy['salary'],
+                          vacancy['url'],)
+                                )
+        conn.commit()
+        conn.close()
+        print('Данные о работодателях и их вакансиях в базу банных сохранены')
 
     def __repr__(self):
         return f"{__class__.__name__}('{self.database_name}', '{self.params}')"

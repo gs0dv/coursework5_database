@@ -8,19 +8,40 @@ from src.modules.head_hunter_api import HeadHunterAPI
 
 def get_salary(data):
     """Возвращает величину зарплаты"""
-    if data['salary']:
-        if data['salary']['to']:
-            salary = data['salary']['to']
-            if data['salary']['currency'] != 'RUR':
-                salary *= 100
-        else:
-            salary = data['salary']['from']
-            if data['salary']['currency'] != 'RUR':
-                salary *= 100
+    if not data['salary']:
+        return
+
+    if data['salary']['to']:
+        salary = data['salary']['to']
+        if data['salary']['currency'] != 'RUR':
+            salary *= 100
     else:
-        salary = None
+        salary = data['salary']['from']
+        if data['salary']['currency'] != 'RUR':
+            salary *= 100
 
     return salary
+
+
+def get_data_from_items(items):
+    """Возвращает словарь вакансий с определенными значениями"""
+    vacancies = []
+    for vacancy in items:
+        salary = get_salary(vacancy)
+        if not salary:
+            continue
+
+        data_vacancies = {
+            'id': vacancy['id'],
+            'name': vacancy['name'].lower(),
+            'city': vacancy['area']['name'],
+            'salary': salary,
+            'url': vacancy['alternate_url']
+        }
+
+        vacancies.append(data_vacancies)
+
+    return vacancies
 
 
 def get_data(ids_employers):
@@ -48,25 +69,7 @@ def get_data(ids_employers):
         }
 
         if count_vacancies <= 100:
-            for vacancy in data_vacancies['items']:
-                salary = get_salary(vacancy)
-                if not salary:
-                    continue
-
-                data_vacancies = {
-                    'id': vacancy['id'],
-                    'name': vacancy['name'].lower(),
-                    'city': vacancy['area']['name'],
-                    'salary': salary,
-                    'url': vacancy['alternate_url']
-                }
-
-                vacancies.append(data_vacancies)
-
-            data.append({
-                'employer': data_employer,
-                'vacancies': vacancies
-            })
+            vacancies.extend(get_data_from_items(data_vacancies['items']))
 
         else:
             count_current_vacancies = 0
@@ -74,66 +77,19 @@ def get_data(ids_employers):
                 data_vacancies = hh_api.get_data_vacancies(id_employer, i)
                 count_current_vacancies += len(data_vacancies['items'])
 
-                for vacancy in data_vacancies['items']:
-                    salary = get_salary(vacancy)
-                    if not salary:
-                        continue
-
-                    data_vacancies = {
-                        'id': vacancy['id'],
-                        'name': vacancy['name'].lower(),
-                        'city': vacancy['area']['name'],
-                        'salary': salary,
-                        'url': vacancy['alternate_url']
-                    }
-
-                    vacancies.append(data_vacancies)
+                vacancies.extend(get_data_from_items(data_vacancies['items']))
 
                 if count_current_vacancies >= count_vacancies:
                     break
 
-            data.append({
-                'employer': data_employer,
-                'vacancies': vacancies
-            })
+        data.append({
+            'employer': data_employer,
+            'vacancies': vacancies
+        })
 
     bar.finish()
     print("\nДанные о работодателях и их вакансиях получены")
     return data
 
 
-def save_data_to_database(data, db_name, params):
-    """Сохранение данных в базу данных"""
 
-    conn = psycopg2.connect(dbname=db_name, **params)
-
-    with conn.cursor() as cur:
-        for employer in data:
-            employer_data = employer['employer']
-            cur.execute("""
-                INSERT INTO employers (employer_id, name_employer, employer_url, employer_hh_url, count_vacancies)
-                VALUES (%s, %s, %s, %s, %s)
-                RETURNING employer_id
-            """, (employer_data['id'],
-                  employer_data['name'],
-                  employer_data['url'],
-                  employer_data['hh_url'],
-                  employer_data['count_vacancies'])
-                        )
-            employer_id = cur.fetchone()[0]
-
-            vacancies_data = employer['vacancies']
-            for vacancy in vacancies_data:
-                cur.execute("""
-                    INSERT INTO vacancies (vacancy_id, employer_id, name_vacancy, city, salary, vacancy_url)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """, (vacancy['id'],
-                      employer_id,
-                      vacancy['name'],
-                      vacancy['city'],
-                      vacancy['salary'],
-                      vacancy['url'],)
-                            )
-    conn.commit()
-    conn.close()
-    print('Данные о работодателях и их вакансиях в базу банных сохранены')

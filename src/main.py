@@ -1,6 +1,6 @@
 from src.modules.database_manager import DBManager
 from src.modules.head_hunter_api import HeadHunterAPI
-from src.utils.utils import get_data, save_data_to_database
+from src.utils.utils import get_data
 
 
 def main():
@@ -33,7 +33,7 @@ def main():
     data = get_data(id_random_ten_employers)
 
     # сохранение данных в базу Postgres
-    save_data_to_database(data, db_name, params)
+    db_manager.save_data_to_database(data, db_name, params)
     print(" ")
 
     filtered_data = db_manager.get_companies_and_vacancies_count()
